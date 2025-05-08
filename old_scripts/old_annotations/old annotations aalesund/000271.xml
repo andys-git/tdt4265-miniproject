@@ -1,0 +1,14 @@
+<annotation>
+	<folder>img1</folder>
+	<filename>000271.jpg</filename>
+	<path>C:\Users\andys\Documents\TDT4265\RBK_TDT17\1_train-val_1min_aalesund_from_start\img1\000271.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>1920</width>
+		<height>1080</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+</annotation>

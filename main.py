@@ -1,62 +1,73 @@
-import cv2
-import glob
-import os
-import matplotlib.pyplot as plt
-import numpy as np
+from ultralytics import YOLO
 
-train_1_path = "RBK_TDT17/1_train-val_1min_aalesund_from_start/img1"
-train_2_path = "RBK_TDT17/2_train-val_1min_after_goal/img1"
-train_3_path = "RBK_TDT17/3_test_1min_hamkam_from_start/img1"
-train_4_path = "RBK_TDT17/4_annotate_1min_bodo_start/img1"
+from make_movie_general import images_to_video
+from object_detection_pipeline import detect_field_objects
+from orientation_detection_pipeline import load_frames, detect_field_points, estimate_homographies, load_frame_dict, save_frame_dict
+from generate_field import get_field_markers
+from generate_overlay import unwarp_all, plot_frames_on_field
+from make_movie_yolo import make_video_yolo
 
-field_dimensions = {'x': 105.0, 'y': 68.0}
+image_folder_path = r"C:\Users\andys\Documents\TDT4265\clean_data\hamkam"
+object_model = "yolo_model_full_1_cpt5.pt"
+point_model = "yolo_model_points_2.pt"
 
-def load_image_paths(folder_path):
-    return glob.glob(os.path.join(folder_path, "*.jpg"))
+CONF_THRESH = {
+    "player": 0.25,
+    "referee": 0.25,
+    "ball": 0.20
+}
 
-def preprocess_image(image_path):
-    img = cv2.imread(image_path)
-    if img is None:
-        print("Image {} not found.".format(image_path))
-        return None
-
-    # Convert from BGR to RGB
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    return img
-
-def detect_and_draw_lines(image, canny_thresh1=50, canny_thresh2=150, hough_rho=1, hough_theta=np.pi/180, hough_thresh=50, min_line_len=100, max_line_gap=10):
-    # 1. Convert to gray & edge‐detect
-    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    edges = cv2.Canny(gray, canny_thresh1, canny_thresh2)
-
-    # 2. Run probabilistic Hough
-    lines = cv2.HoughLinesP(edges,
-                            rho=hough_rho, theta=hough_theta, threshold=hough_thresh,
-                            minLineLength=min_line_len, maxLineGap=max_line_gap)
-
-    # 3. Draw lines in cyan (BGR=(255,255,0)), thickness=2
-    out = image.copy()
-    if lines is not None:
-        for x1, y1, x2, y2 in lines[:, 0]:
-            cv2.line(out, (x1, y1), (x2, y2), (255, 255, 0), 2)
-    return out
-
-
-
-def display_image(image):
-    plt.figure(figsize=(10, 10))
-    plt.imshow(image)
-    plt.axis('off')
-    plt.show()
+FIELD_DIMENSIONS = {'x': 105.0, 'y': 68.0}
 
 def main():
-    image_paths = load_image_paths(train_1_path)
-    image = preprocess_image(image_paths[0])
-    display_image(image)
-    image_detect = detect_and_draw_lines(image)
-    display_image(image_detect)
+    frames = load_frames(image_folder_path)
+
+    try:
+        frame_dict = load_frame_dict()
+    except FileNotFoundError:
+        # Initialize our frames with detected keypoints
+        print("Detecting keypoints...")
+        frame_dict = detect_field_points(YOLO(point_model), frames, image_folder_path)
+
+        # Add attribute to each frame how it has been warped (homographic matrix)
+        print("Estimating field orientation...")
+        warp = estimate_homographies(frame_dict, frames, get_field_markers(FIELD_DIMENSIONS), image_folder_path)
+        for f, H in zip(frames, warp): frame_dict[f]['warp'] = H
+
+        objects_dict = detect_field_objects(YOLO(object_model), frames, image_folder_path, CONF_THRESH)
+        for f in frames:
+            frame_dict[f]['objects'] = objects_dict.get(f, [])
+
+        frame_dict = unwarp_all(frame_dict)
+        save_frame_dict(frame_dict)
+
+    # print("Making YOLO video frames...")
+    # make_video_yolo(
+    #     image_folder_path,
+    #     object_model,
+    #     0,
+    #     1801,
+    #     classes_to_draw=['player', 'referee', 'ball'],
+    #     image_output_dir=r"C:\Users\andys\Documents\TDT4265\final_result_yolo"
+    # )
+    #
+    # print("Making plot frames...")
+    # plot_frames_on_field(
+    #     frame_dict,
+    #     r"C:\Users\andys\Documents\TDT4265\final_result_yolo",
+    #     FIELD_DIMENSIONS,
+    #     background_path='field.jpg',
+    #     output_dir=r"C:\Users\andys\Documents\TDT4265\final_result_overlay"
+    # )
+
+    print("Making final video...")
+    images_to_video(
+        r"C:\Users\andys\Documents\TDT4265\final_result_overlay",
+        "final_result_short.mp4",
+        fps=24
+    )
 
     return
 
-main()
+if __name__ == "__main__":
+    main()

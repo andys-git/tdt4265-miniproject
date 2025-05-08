@@ -174,3 +174,21 @@ cython_debug/
 .pypirc
 
 RBK_TDT17/
+labelImg/
+clean_data/
+annotations/
+runs*/
+showcase/
+*.mp4
+*.jpg
+*.png
+*.pkl
+point_data/
+point_data_meta/
+point_data_clean/
+pipeline_test_images/
+final_result_overlay/
+final_result_overlay_full/
+final_result_yolo/
+final_result_yolo_full/
+calibration_plots_cv/
